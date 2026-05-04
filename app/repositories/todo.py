@@ -16,9 +16,15 @@ from app.schemas.todo import TodoCreate, TodoUpdate
 class TodoRepository:
     """Data access layer for todo persistence."""
 
-    async def create(self, session: AsyncSession, payload: TodoCreate) -> Todo:
+    async def create(
+        self,
+        session: AsyncSession,
+        *,
+        owner_id: UUID,
+        payload: TodoCreate,
+    ) -> Todo:
         """Create and persist a todo item."""
-        todo = Todo(**payload.model_dump())
+        todo = Todo(owner_id=owner_id, **payload.model_dump())
         session.add(todo)
         await session.commit()
         await session.refresh(todo)
@@ -32,13 +38,20 @@ class TodoRepository:
         self,
         session: AsyncSession,
         *,
+        owner_id: UUID,
         limit: int,
         offset: int,
+        is_active: bool | None = None,
         is_completed: bool | None = None,
         search: str | None = None,
     ) -> Sequence[Todo]:
         """List todo items with pagination and optional filters."""
-        query = self._build_filtered_query(is_completed=is_completed, search=search)
+        query = self._build_filtered_query(
+            owner_id=owner_id,
+            is_active=is_active,
+            is_completed=is_completed,
+            search=search,
+        )
         query = query.order_by(Todo.created_at.desc()).limit(limit).offset(offset)
         result = await session.execute(query)
         return result.scalars().all()
@@ -47,11 +60,18 @@ class TodoRepository:
         self,
         session: AsyncSession,
         *,
+        owner_id: UUID,
+        is_active: bool | None = None,
         is_completed: bool | None = None,
         search: str | None = None,
     ) -> int:
         """Count todo items for the current filter set."""
-        base_query = self._build_filtered_query(is_completed=is_completed, search=search)
+        base_query = self._build_filtered_query(
+            owner_id=owner_id,
+            is_active=is_active,
+            is_completed=is_completed,
+            search=search,
+        )
         count_query = select(func.count()).select_from(base_query.subquery())
         result = await session.execute(count_query)
         return int(result.scalar_one())
@@ -72,10 +92,25 @@ class TodoRepository:
         await session.delete(todo)
         await session.commit()
 
+    async def deactivate(self, session: AsyncSession, todo: Todo) -> Todo:
+        """Mark a todo item as inactive."""
+        todo.is_active = False
+        todo.updated_at = datetime.now(UTC)
+        await session.commit()
+        await session.refresh(todo)
+        return todo
+
     def _build_filtered_query(
-        self, *, is_completed: bool | None, search: str | None
+        self,
+        *,
+        owner_id: UUID,
+        is_active: bool | None,
+        is_completed: bool | None,
+        search: str | None,
     ) -> Select[tuple[Todo]]:
-        query = select(Todo)
+        query = select(Todo).where(Todo.owner_id == owner_id)
+        if is_active is not None:
+            query = query.where(Todo.is_active.is_(is_active))
         if is_completed is not None:
             query = query.where(Todo.is_completed.is_(is_completed))
         if search:

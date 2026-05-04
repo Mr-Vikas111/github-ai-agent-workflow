@@ -13,6 +13,30 @@ class NotFoundError(Exception):
         super().__init__(detail)
 
 
+class ConflictError(Exception):
+    """Raised when a resource conflicts with existing state."""
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
+class AuthenticationError(Exception):
+    """Raised when authentication fails."""
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
+class AuthorizationError(Exception):
+    """Raised when a user lacks permission for an action."""
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register API exception handlers."""
 
@@ -20,6 +44,28 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def handle_not_found(_: Request, exc: NotFoundError) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(ConflictError)
+    async def handle_conflict(_: Request, exc: ConflictError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(AuthenticationError)
+    async def handle_authentication(_: Request, exc: AuthenticationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": exc.detail},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    @app.exception_handler(AuthorizationError)
+    async def handle_authorization(_: Request, exc: AuthorizationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
             content={"detail": exc.detail},
         )
 

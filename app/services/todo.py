@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.models.todo import Todo
 from app.repositories.todo import TodoRepository
 from app.schemas.todo import TodoCreate, TodoListResponse, TodoUpdate
@@ -19,46 +19,59 @@ class TodoService:
         self._session = session
         self._repository = repository
 
-    async def create_todo(self, payload: TodoCreate) -> Todo:
+    async def create_todo(self, owner_id: UUID, payload: TodoCreate) -> Todo:
         """Create a todo item."""
-        return await self._repository.create(self._session, payload)
+        return await self._repository.create(self._session, owner_id=owner_id, payload=payload)
 
-    async def get_todo(self, todo_id: UUID) -> Todo:
+    async def get_todo(self, todo_id: UUID, owner_id: UUID) -> Todo:
         """Return a single todo item or raise when missing."""
         todo = await self._repository.get_by_id(self._session, todo_id)
         if todo is None:
             raise NotFoundError(f"Todo '{todo_id}' was not found.")
+        if todo.owner_id != owner_id:
+            raise AuthorizationError("You do not have permission to access this todo.")
         return todo
 
     async def list_todos(
         self,
         *,
+        owner_id: UUID,
         limit: int,
         offset: int,
+        is_active: bool | None = None,
         is_completed: bool | None = None,
         search: str | None = None,
     ) -> TodoListResponse:
         """Return paginated todo items."""
         items = await self._repository.list(
             self._session,
+            owner_id=owner_id,
             limit=limit,
             offset=offset,
+            is_active=is_active,
             is_completed=is_completed,
             search=search,
         )
         total = await self._repository.count(
             self._session,
+            owner_id=owner_id,
+            is_active=is_active,
             is_completed=is_completed,
             search=search,
         )
         return TodoListResponse(items=items, total=total, limit=limit, offset=offset)
 
-    async def update_todo(self, todo_id: UUID, payload: TodoUpdate) -> Todo:
+    async def update_todo(self, todo_id: UUID, owner_id: UUID, payload: TodoUpdate) -> Todo:
         """Update a todo item or raise when missing."""
-        todo = await self.get_todo(todo_id)
+        todo = await self.get_todo(todo_id, owner_id)
         return await self._repository.update(self._session, todo, payload)
 
-    async def delete_todo(self, todo_id: UUID) -> None:
+    async def delete_todo(self, todo_id: UUID, owner_id: UUID) -> None:
         """Delete a todo item or raise when missing."""
-        todo = await self.get_todo(todo_id)
+        todo = await self.get_todo(todo_id, owner_id)
         await self._repository.delete(self._session, todo)
+
+    async def deactivate_todo(self, todo_id: UUID, owner_id: UUID) -> Todo:
+        """Mark a todo item inactive or raise when missing."""
+        todo = await self.get_todo(todo_id, owner_id)
+        return await self._repository.deactivate(self._session, todo)

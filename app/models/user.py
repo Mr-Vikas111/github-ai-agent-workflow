@@ -1,15 +1,16 @@
-"""Todo ORM model."""
+"""User ORM model."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import Boolean, DateTime, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.schemas.auth import UserRole
 
 
 def utcnow() -> datetime:
@@ -17,31 +18,27 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class Todo(Base):
-    """Persisted todo item."""
+class User(Base):
+    """Persisted application user."""
 
-    __tablename__ = "todos"
+    __tablename__ = "users"
     __table_args__ = (
-        Index("ix_todos_is_completed", "is_completed"),
-        Index("ix_todos_is_active", "is_active"),
-        Index("ix_todos_created_at", "created_at"),
-        Index("ix_todos_owner_id", "owner_id"),
+        Index("ix_users_is_active", "is_active"),
+        Index("ix_users_role", "role"),
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    owner_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    is_completed: Mapped[bool] = mapped_column(
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(
+        String(50),
         nullable=False,
-        default=False,
-        server_default="false",
+        default=UserRole.USER.value,
+        server_default=UserRole.USER.value,
     )
     is_active: Mapped[bool] = mapped_column(
+        Boolean,
         nullable=False,
         default=True,
         server_default="true",

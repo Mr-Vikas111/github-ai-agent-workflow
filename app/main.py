@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.db.session import dispose_engine
+from app.schemas.common import HealthResponse
 
 
 @asynccontextmanager
@@ -25,10 +26,29 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title=settings.app_name,
         version="1.0.0",
+        description=(
+            "Production-ready FastAPI service with JWT authentication, protected todo APIs, "
+            "and explicit user-scoped task CRUD endpoints."
+        ),
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
         lifespan=lifespan,
+        openapi_tags=[
+            {
+                "name": "auth",
+                "description": "User registration, login, and current-user endpoints.",
+            },
+            {
+                "name": "todos",
+                "description": "Protected todo CRUD operations scoped to the authenticated user.",
+            },
+            {
+                "name": "tasks",
+                "description": "User-wise task CRUD operations under the current user namespace.",
+            },
+            {"name": "health", "description": "Application health and readiness endpoints."},
+        ],
     )
     register_exception_handlers(application)
     application.include_router(api_router, prefix="/api/v1")
@@ -38,9 +58,11 @@ def create_app() -> FastAPI:
         tags=["health"],
         summary="Health check",
         description="Return a basic liveness probe response.",
+        response_model=HealthResponse,
+        response_description="Application health status.",
     )
-    async def healthcheck() -> dict[str, str]:
-        return {"status": "ok"}
+    async def healthcheck() -> HealthResponse:
+        return HealthResponse(status="ok")
 
     return application
 

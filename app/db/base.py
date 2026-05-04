@@ -19,4 +19,7 @@ class Base(DeclarativeBase):
 
 def import_models() -> None:
     """Import ORM models so they are registered on the shared metadata."""
-    from app.models import todo  # noqa: F401
+    from app.models import (
+        todo,  # noqa: F401
+        user,  # noqa: F401
+    )
