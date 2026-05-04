@@ -358,6 +358,7 @@ Always follow:
 * reusable design
 * maintainable code
 * production-grade standards
+* follow coding patterns(eg, Builder, Factory, Adapter, Facade)
 
 ---
 
